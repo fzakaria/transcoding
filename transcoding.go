@@ -24,6 +24,7 @@ func main() {
 
 	var inputFilename string
 	var outputFilename string
+	var debug bool
 
 	flags := []cli.Flag{
 		cli.StringFlag{
@@ -35,6 +36,11 @@ func main() {
 			Name:        "output, o",
 			Usage:       "the output file where to save the output of the transcoding",
 			Destination: &outputFilename,
+		},
+		cli.BoolFlag{
+			Name:        "debug, d",
+			Usage:       "Whether we should display debug information.",
+			Destination: &debug,
 		},
 	}
 
@@ -51,11 +57,15 @@ func main() {
 						"output": outputFilename,
 					}).Fatal("Missing necessary arguments.")
 				}
+				if debug {
+					log.SetLevel(log.DebugLevel)
+				}
 				scale := "-1:380"
 				videoKilobitRate := uint(180)
 				audioKilobitRate := uint(128)
 				converter := NewFfmpegConverter(inputFilename, outputFilename, scale, videoKilobitRate, audioKilobitRate)
 				converter.Transcode()
+				log.Debug("Finished Transcoding.")
 			},
 		},
 	}

@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
-	"strings"
 	"os/exec"
+	"strings"
 )
 
 type FfmpegConverter struct {
@@ -20,18 +20,24 @@ func NewFfmpegConverter(input, output, videoScale string, videoKilobitRate, audi
 }
 
 func (c *FfmpegConverter) Transcode() {
-	cmd := c.Command()
-	log.WithFields(log.Fields{
-		cmd: cmd,
-	}).Debug("Transcoding file.")
-	//we need to split up the command for os.exec
-	parts := strings.Fields(cmd)
-	head, parts := parts[0], parts[1:]
-	if err := exec.Command(head, parts...).Run(); err != nil {
+	ffmpegCmd := func(fullCommand string) {
 		log.WithFields(log.Fields{
-		"error": err,
-		}).Panic("Error during the transcoding.")
+			"cmd": fullCommand,
+		}).Debug("Transcoding file.")
+		//we need to split up the command for os.exec
+		parts := strings.Fields(fullCommand)
+		head, parts := parts[0], parts[1:]
+		cmd := exec.Command(head, parts...)
+		cmd.Stdout = log.StandardLogger().Out
+		cmd.Stderr = log.StandardLogger().Out
+		if err := cmd.Run(); err != nil {
+			log.WithFields(log.Fields{
+				"error": err,
+			}).Panic("Error during the transcoding.")
+		}
 	}
+	ffmpegCmd(c.Pass1())
+	ffmpegCmd(c.Pass2())
 }
 
 /*
@@ -41,15 +47,21 @@ func (c *FfmpegConverter) Transcode() {
  * https://trac.ffmpeg.org/wiki/Encode/H.264
  * https://www.virag.si/2012/01/web-video-encoding-tutorial-with-ffmpeg-0-9/
  */
-func (c *FfmpegConverter) Command() string {
+func (c *FfmpegConverter) Pass1() string {
 	commandName := "ffmpeg"
 	buffsize := c.videoKilobitRate * 2
 	firstPass := fmt.Sprintf(
 		"%v -y -i %v -codec:v libx264 -profile:v high -preset slow -b:v %vk -maxrate %vk -vf scale=%v -threads 0 -pass 1 -c:a libfdk_aac -b:a %vk -f mp4 /dev/null",
 		commandName, c.inputFilename, c.videoKilobitRate, buffsize, c.videoScale, c.audioKilobitRate)
+	return firstPass
+}
+
+func (c *FfmpegConverter) Pass2() string {
+	commandName := "ffmpeg"
+	buffsize := c.videoKilobitRate * 2
 	secondPass := fmt.Sprintf(
-		"%v -i %v -codec:v libx264 -profile:v high -preset slow -b:v %vk -maxrate %vk -vf scale=%v -threads 0 -pass 2 -codec:a libfdk_aac -b:a %vk -f mp4 %v",
+		"%v -y -i %v -codec:v libx264 -profile:v high -preset slow -b:v %vk -maxrate %vk -vf scale=%v -threads 0 -pass 2 -codec:a libfdk_aac -b:a %vk -f mp4 %v",
 		commandName, c.inputFilename, c.videoKilobitRate, buffsize, c.videoScale, c.audioKilobitRate, c.outputFilename)
 
-	return firstPass + " && \\ \n" + secondPass
+	return secondPass
 }
