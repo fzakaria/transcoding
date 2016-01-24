@@ -1,8 +1,6 @@
-# Transcoding CLI tool
+# Transcoding CLI & Server tool
 
-This tool is a thin wrapper around ffmpeg (msut be on $PATH) with the hopes of making it more programmatable.
-
-You can provide arbitrary video filter descriptions to modify the input file in question.
+This binary includes a CLI tool that is a thin wrapper around ffmpeg (msut be on $PATH) with the hopes of making it more programmable. At the moment it will include some known defaults (see below) on some common video transcoding - specifically for H.264
 
 ## Choosing an appriorate filter description
 
@@ -31,6 +29,8 @@ Resolution    | Bitrate       | Approx. File size of 10 minutes
 
 ## Sample Commands
 
+```
 ./transcoding 320p -i sample.mp4 -o output.mp4  
 
 ./transcoding server --debug
+```
