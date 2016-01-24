@@ -1,6 +1,25 @@
 # Transcoding CLI & Server tool
 
+## CLI
 This binary includes a CLI tool that is a thin wrapper around ffmpeg (msut be on $PATH) with the hopes of making it more programmable. At the moment it will include some known defaults (see below) on some common video transcoding - specifically for H.264
+
+## Server
+A basic server implementation is included that offers the facility to transcode uploaded multipart files and some additional admin urls.
+
+```
+GET /ping                                    
+GET /transcode                               
+POST /transcode                              
+GET /debug/pprof/                            
+GET /debug/pprof/heap                        
+GET /debug/pprof/goroutine                   
+GET /debug/pprof/block                       
+GET /debug/pprof/threadcreate                
+GET /debug/pprof/cmdline                     
+GET /debug/pprof/profile                     
+GET /debug/pprof/symbol                      
+GET /stats    
+```
 
 ## Choosing an appriorate filter description
 
