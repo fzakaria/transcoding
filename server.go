@@ -107,7 +107,10 @@ func TranscodePost(c *echo.Context) error {
 
 	converter := transcodeFunc(input.Name(), output.Name())
 
-	converter.Transcode()
+	if err:= converter.Transcode(); err != nil {
+		c.String(http.StatusInternalServerError, "Error transcoding the file.")
+		return err
+	}
 
 	c.Response().Header().Set(echo.ContentType, "video/mp4")
 	fi, err := output.Stat()

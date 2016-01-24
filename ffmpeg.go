@@ -5,6 +5,8 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"os/exec"
 	"strings"
+	"os"
+	"io/ioutil"
 )
 
 type FfmpegConverter struct {
@@ -39,8 +41,8 @@ func NewFfmpegConverter(input, output, videoScale string, videoKilobitRate, audi
 	return &FfmpegConverter{input, output, videoScale, videoKilobitRate, audioKilobitRate}
 }
 
-func (c *FfmpegConverter) Transcode() {
-	ffmpegCmd := func(fullCommand string) {
+func (c *FfmpegConverter) Transcode() (error) {
+	ffmpegCmd := func(fullCommand string) (error) {
 		log.WithFields(log.Fields{
 			"cmd": fullCommand,
 		}).Debug("Transcoding file.")
@@ -53,11 +55,33 @@ func (c *FfmpegConverter) Transcode() {
 		if err := cmd.Run(); err != nil {
 			log.WithFields(log.Fields{
 				"error": err,
-			}).Panic("Error during the transcoding.")
+			}).Error("Error during the transcoding.")
+			return err
 		}
+		return nil
 	}
-	ffmpegCmd(c.Pass1())
-	ffmpegCmd(c.Pass2())
+	passLogFile, err := ioutil.TempFile("", "ffmpeg2pass")
+	if err != nil {
+		log.WithFields(log.Fields{
+				"error": err,
+		}).Error("Error creating ffmpeg2pass log file.")
+		return err
+	}
+	defer os.Remove(passLogFile.Name())
+
+	if err := ffmpegCmd(c.Pass1(passLogFile.Name())); err != nil {
+		log.WithFields(log.Fields{
+				"error": err,
+		}).Error("Error during first pass.")
+		return err
+	}
+	if err := ffmpegCmd(c.Pass2(passLogFile.Name())); err != nil {
+		log.WithFields(log.Fields{
+				"error": err,
+		}).Error("Error during second pass.")
+		return err
+	}
+	return nil
 }
 
 /*
@@ -67,21 +91,21 @@ func (c *FfmpegConverter) Transcode() {
  * https://trac.ffmpeg.org/wiki/Encode/H.264
  * https://www.virag.si/2012/01/web-video-encoding-tutorial-with-ffmpeg-0-9/
  */
-func (c *FfmpegConverter) Pass1() string {
+func (c *FfmpegConverter) Pass1(passlog string) string {
 	commandName := "ffmpeg"
 	buffsize := c.videoKilobitRate * 2
 	firstPass := fmt.Sprintf(
-		"%v -y -i %v -codec:v libx264 -profile:v high -preset slow -b:v %vk -bufsize %vk -vf scale=%v -threads 0 -pass 1 -c:a libfdk_aac -b:a %vk -f mp4 /dev/null",
-		commandName, c.inputFilename, c.videoKilobitRate, buffsize, c.videoScale, c.audioKilobitRate)
+		"%v -y -i %v -passlogfile %v -codec:v libx264 -profile:v high -preset slow -b:v %vk -bufsize %vk -vf scale=%v -threads 0 -pass 1 -c:a libfdk_aac -b:a %vk -f mp4 /dev/null",
+		commandName, c.inputFilename, passlog, c.videoKilobitRate, buffsize, c.videoScale, c.audioKilobitRate)
 	return firstPass
 }
 
-func (c *FfmpegConverter) Pass2() string {
+func (c *FfmpegConverter) Pass2(passlog string) string {
 	commandName := "ffmpeg"
 	buffsize := c.videoKilobitRate * 2
 	secondPass := fmt.Sprintf(
-		"%v -y -i %v -codec:v libx264 -profile:v high -preset slow -b:v %vk -bufsize %vk -vf scale=%v -threads 0 -pass 2 -codec:a libfdk_aac -b:a %vk -f mp4 %v",
-		commandName, c.inputFilename, c.videoKilobitRate, buffsize, c.videoScale, c.audioKilobitRate, c.outputFilename)
+		"%v -y -i %v -passlogfile %v -codec:v libx264 -profile:v high -preset slow -b:v %vk -bufsize %vk -vf scale=%v -threads 0 -pass 2 -codec:a libfdk_aac -b:a %vk -f mp4 %v",
+		commandName, c.inputFilename, passlog, c.videoKilobitRate, buffsize, c.videoScale, c.audioKilobitRate, c.outputFilename)
 
 	return secondPass
 }
