@@ -15,8 +15,24 @@ type FfmpegConverter struct {
 	audioKilobitRate uint
 }
 
+func New720pConverter(input, output string) *FfmpegConverter {
+	return NewFfmpegConverter(input, output, "-1:720", uint(1000), uint(128))
+}
+
+func New576pConverter(input, output string) *FfmpegConverter {
+	return NewFfmpegConverter(input, output, "-1:576", uint(850), uint(128))
+}
+
+func New480pConverter(input, output string) *FfmpegConverter {
+	return NewFfmpegConverter(input, output, "-1:480", uint(500), uint(128))
+}
+
+func New360pConverter(input, output string) *FfmpegConverter {
+	return NewFfmpegConverter(input, output, "-1:360", uint(300), uint(128))
+}
+
 func New320pConverter(input, output string) *FfmpegConverter {
-	return NewFfmpegConverter(input, output, "-1:380", uint(180), uint(128))
+	return NewFfmpegConverter(input, output, "-1:320", uint(180), uint(128))
 }
 
 func NewFfmpegConverter(input, output, videoScale string, videoKilobitRate, audioKilobitRate uint) *FfmpegConverter {
