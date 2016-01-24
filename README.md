@@ -32,3 +32,5 @@ Resolution    | Bitrate       | Approx. File size of 10 minutes
 ## Sample Commands
 
 ./transcoding 320p -i sample.mp4 -o output.mp4  
+
+./transcoding server --debug

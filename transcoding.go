@@ -8,10 +8,8 @@
 package main
 
 import (
-	"fmt"
 	log "github.com/Sirupsen/logrus"
 	"github.com/codegangsta/cli"
-	"os"
 )
 
 func main() {
@@ -25,33 +23,31 @@ func main() {
 	var inputFilename string
 	var outputFilename string
 	var debug bool
-
-	flags := []cli.Flag{
-		cli.StringFlag{
-			Name:        "input, i",
-			Usage:       "the input file to perform the transcoding on",
-			Destination: &inputFilename,
-		},
-		cli.StringFlag{
-			Name:        "output, o",
-			Usage:       "the output file where to save the output of the transcoding",
-			Destination: &outputFilename,
-		},
-		cli.BoolFlag{
-			Name:        "debug, d",
-			Usage:       "Whether we should display debug information.",
-			Destination: &debug,
-		},
-	}
+	var port int
 
 	app.Commands = []cli.Command{
 		{
 			Name:  "320p",
 			Usage: "Default presets for transcoding to 320p.",
-			Flags: flags,
+			Flags: []cli.Flag{
+				cli.StringFlag{
+					Name:        "input, i",
+					Usage:       "the input file to perform the transcoding on",
+					Destination: &inputFilename,
+				},
+				cli.StringFlag{
+					Name:        "output, o",
+					Usage:       "the output file where to save the output of the transcoding",
+					Destination: &outputFilename,
+				},
+				cli.BoolFlag{
+					Name:        "debug, d",
+					Usage:       "Whether we should display debug information.",
+					Destination: &debug,
+				},
+			},
 			Action: func(c *cli.Context) {
 				if inputFilename == "" || outputFilename == "" {
-					fmt.Fprintln(os.Stderr, "You must specify an input/output filename.")
 					log.WithFields(log.Fields{
 						"input":  inputFilename,
 						"output": outputFilename,
@@ -60,12 +56,33 @@ func main() {
 				if debug {
 					log.SetLevel(log.DebugLevel)
 				}
-				scale := "-1:380"
-				videoKilobitRate := uint(180)
-				audioKilobitRate := uint(128)
-				converter := NewFfmpegConverter(inputFilename, outputFilename, scale, videoKilobitRate, audioKilobitRate)
+				converter := New320pConverter(inputFilename, outputFilename)
 				converter.Transcode()
 				log.Debug("Finished Transcoding.")
+			},
+		},
+		{
+			Name:  "server",
+			Usage: "Starts a transcoding server",
+			Flags: []cli.Flag{
+				cli.IntFlag{
+					Name:        "port, p",
+					Usage:       "the HTTP port for the server to listen to",
+					Destination: &port,
+					Value:       8080,
+					EnvVar:      "PORT",
+				},
+				cli.BoolFlag{
+					Name:        "debug, d",
+					Usage:       "Whether we should display debug information or run in production mode.",
+					Destination: &debug,
+				},
+			},
+			Action: func(c *cli.Context) {
+				if debug {
+					log.SetLevel(log.DebugLevel)
+				}
+				StartServer(port, debug)
 			},
 		},
 	}

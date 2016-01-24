@@ -15,6 +15,10 @@ type FfmpegConverter struct {
 	audioKilobitRate uint
 }
 
+func New320pConverter(input, output string) *FfmpegConverter {
+	return NewFfmpegConverter(input, output, "-1:380", uint(180), uint(128))
+}
+
 func NewFfmpegConverter(input, output, videoScale string, videoKilobitRate, audioKilobitRate uint) *FfmpegConverter {
 	return &FfmpegConverter{input, output, videoScale, videoKilobitRate, audioKilobitRate}
 }
@@ -51,7 +55,7 @@ func (c *FfmpegConverter) Pass1() string {
 	commandName := "ffmpeg"
 	buffsize := c.videoKilobitRate * 2
 	firstPass := fmt.Sprintf(
-		"%v -y -i %v -codec:v libx264 -profile:v high -preset slow -b:v %vk -maxrate %vk -vf scale=%v -threads 0 -pass 1 -c:a libfdk_aac -b:a %vk -f mp4 /dev/null",
+		"%v -y -i %v -codec:v libx264 -profile:v high -preset slow -b:v %vk -bufsize %vk -vf scale=%v -threads 0 -pass 1 -c:a libfdk_aac -b:a %vk -f mp4 /dev/null",
 		commandName, c.inputFilename, c.videoKilobitRate, buffsize, c.videoScale, c.audioKilobitRate)
 	return firstPass
 }
@@ -60,7 +64,7 @@ func (c *FfmpegConverter) Pass2() string {
 	commandName := "ffmpeg"
 	buffsize := c.videoKilobitRate * 2
 	secondPass := fmt.Sprintf(
-		"%v -y -i %v -codec:v libx264 -profile:v high -preset slow -b:v %vk -maxrate %vk -vf scale=%v -threads 0 -pass 2 -codec:a libfdk_aac -b:a %vk -f mp4 %v",
+		"%v -y -i %v -codec:v libx264 -profile:v high -preset slow -b:v %vk -bufsize %vk -vf scale=%v -threads 0 -pass 2 -codec:a libfdk_aac -b:a %vk -f mp4 %v",
 		commandName, c.inputFilename, c.videoKilobitRate, buffsize, c.videoScale, c.audioKilobitRate, c.outputFilename)
 
 	return secondPass
