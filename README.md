@@ -1,5 +1,15 @@
 # Transcoding CLI & Server tool
 
+## Sample Commands
+
+```
+go get github.com/fzakaria/transcoding
+go install github.com/fzakaria/transcoding
+#Assumes $GOPATH/bin is on your $PATH
+transcoding 320p -i sample.mp4 -o output.mp4  
+transcoding server --debug
+```
+
 ## CLI
 This binary includes a CLI tool that is a thin wrapper around ffmpeg (msut be on $PATH) with the hopes of making it more programmable. At the moment it will include some known defaults (see below) on some common video transcoding - specifically for H.264
 
@@ -44,12 +54,3 @@ Resolution    | Bitrate       | Approx. File size of 10 minutes
 480p          |	500 kbit/s    | ~37MB
 576p (PAL)    | 850 kbit/s    | ~63MB
 720p          | 1000 kbit/s   | ~75 MB
-
-
-## Sample Commands
-
-```
-./transcoding 320p -i sample.mp4 -o output.mp4  
-
-./transcoding server --debug
-```
