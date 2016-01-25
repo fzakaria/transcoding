@@ -1,23 +1,23 @@
-package main
+package sqs
 
 import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sqs"
+	s "github.com/aws/aws-sdk-go/service/sqs"
 )
 
 //Much of the base for this file was originally attributed to
 //https://github.com/nabeken/golang-sqs-worker-example/blob/master/worker/worker.go
 
 type Handler interface {
-	HandleMessage(msg *sqs.Message)
+	HandleMessage(msg * string)
 }
 
-type HandlerFunc func(msg *sqs.Message)
+type HandlerFunc func(msg * string)
 
-func (f HandlerFunc) HandleMessage(msg *sqs.Message) {
+func (f HandlerFunc) HandleMessage(msg * string) {
 	f(msg)
 }
 
@@ -25,7 +25,7 @@ func (f HandlerFunc) HandleMessage(msg *sqs.Message) {
 type Worker struct {
 	QueueUrl string
 
-	SQS *sqs.SQS
+	client *s.SQS
 
 	Handler
 }
@@ -36,12 +36,12 @@ type Worker struct {
 func NewDefaultWorker(queueUrl, region string, f Handler) *Worker {
 	return &Worker{
 		queueUrl,
-		sqs.New(session.New(&aws.Config{Region: aws.String(region)})),
+		s.New(session.New(&aws.Config{Region: aws.String(region)})),
 		f}
 }
 
 func (w *Worker) Start() {
-	params := &sqs.ReceiveMessageInput{
+	params := &s.ReceiveMessageInput{
 		QueueUrl: aws.String(w.QueueUrl), // Required
 		AttributeNames: []*string{
 			aws.String("All"), //include all diagnostic attributes
@@ -54,7 +54,7 @@ func (w *Worker) Start() {
 		WaitTimeSeconds:   aws.Int64(1), //The duration (in seconds) for which the call will wait for a message to arrive in the queue before returning
 	}
 
-	resp, err := w.SQS.ReceiveMessage(params)
+	resp, err := w.client.ReceiveMessage(params)
 	if err != nil {
 		awsErr := err.(awserr.Error)
 		log.WithFields(log.Fields{
@@ -65,21 +65,25 @@ func (w *Worker) Start() {
 		return
 	}
 
+	log.WithFields(log.Fields{
+			"resp":   resp,
+	}).Debug("Polled response from sqs.")
+
 	for _, message := range resp.Messages {
 		//spawn a goroutine to handle each message concurrently
-		go func(m *sqs.Message) {
-			w.HandleMessage(m)
+		go func(m *s.Message) {
+			w.HandleMessage(m.Body)
 			w.deleteMessage(m)
 		}(message)
 	}
 }
 
-func (w *Worker) deleteMessage(m *sqs.Message) {
-	params := &sqs.DeleteMessageInput{
+func (w *Worker) deleteMessage(m *s.Message) {
+	params := &s.DeleteMessageInput{
 		QueueUrl:      aws.String(w.QueueUrl), // Required
 		ReceiptHandle: m.ReceiptHandle,        // Required
 	}
-	_, err := w.SQS.DeleteMessage(params)
+	_, err := w.client.DeleteMessage(params)
 	if err != nil {
 		awsErr := err.(awserr.Error)
 		log.WithFields(log.Fields{

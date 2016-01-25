@@ -14,12 +14,22 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"github.com/fzakaria/transcoding/ffmpeg"
+	"github.com/fzakaria/transcoding/aws/sqs"
 )
 
-func InitializeCron() {
+func InitializeCron(config AwsConfig) {
 	log.Info("Initializing jobs")
+	worker := sqs.NewDefaultWorker(config.QueueUrl, config.Region, sqs.HandlerFunc(TranscodeSQS))
 	cron := cron.New()
+	cron.AddFunc("@every 5s", worker.Start )
 	cron.Start()
+}
+
+func TranscodeSQS(msg * string) {
+	log.WithFields(log.Fields{
+		"msg":  *msg,
+	}).Info("Received a SQS message.")
 }
 
 func TranscodeGet(c *echo.Context) error {
@@ -51,7 +61,7 @@ func TranscodePost(conversions map[string]FfmpegConversion) echo.HandlerFunc {
 			return c.String(http.StatusBadRequest, "Not a valid transcoding type.")
 		}
 
-		converter := NewFfmpegConverter(input.Name(), output.Name(), conversion.Scale,
+		converter := ffmpeg.NewConverter(input.Name(), output.Name(), conversion.Scale,
 			conversion.VideoKilobitRate, conversion.AudioKilobitRate)
 
 		if err := converter.Transcode(); err != nil {
@@ -132,6 +142,7 @@ func StartServer(config Config) {
 	// Route to see the configuration we are using
 	e.Get("/config", configHandler(config))
 
+	InitializeCron(config.Aws)
 	// Start server
 	log.WithFields(log.Fields{
 		"port":  port,

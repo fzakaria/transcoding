@@ -8,6 +8,7 @@ debug = true
 
 [aws]
 region = "us-east-1"
+queue_url = "https://sqs.us-east-1.amazonaws.com/082777227827/my-test-queue"
 
 [ffmpeg]
 	

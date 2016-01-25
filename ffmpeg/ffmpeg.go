@@ -1,4 +1,4 @@
-package main
+package ffmpeg
 
 import (
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-type FfmpegConverter struct {
+type Converter struct {
 	inputFilename    string
 	outputFilename   string
 	videoScale       string
@@ -17,11 +17,11 @@ type FfmpegConverter struct {
 	audioKilobitRate uint
 }
 
-func NewFfmpegConverter(input, output, videoScale string, videoKilobitRate, audioKilobitRate uint) *FfmpegConverter {
-	return &FfmpegConverter{input, output, videoScale, videoKilobitRate, audioKilobitRate}
+func NewConverter(input, output, videoScale string, videoKilobitRate, audioKilobitRate uint) *Converter {
+	return &Converter{input, output, videoScale, videoKilobitRate, audioKilobitRate}
 }
 
-func (c *FfmpegConverter) Transcode() error {
+func (c *Converter) Transcode() error {
 	ffmpegCmd := func(fullCommand string) error {
 		log.WithFields(log.Fields{
 			"cmd": fullCommand,
@@ -71,7 +71,7 @@ func (c *FfmpegConverter) Transcode() error {
  * https://trac.ffmpeg.org/wiki/Encode/H.264
  * https://www.virag.si/2012/01/web-video-encoding-tutorial-with-ffmpeg-0-9/
  */
-func (c *FfmpegConverter) Pass1(passlog string) string {
+func (c *Converter) Pass1(passlog string) string {
 	commandName := "ffmpeg"
 	buffsize := c.videoKilobitRate * 2
 	firstPass := fmt.Sprintf(
@@ -80,7 +80,7 @@ func (c *FfmpegConverter) Pass1(passlog string) string {
 	return firstPass
 }
 
-func (c *FfmpegConverter) Pass2(passlog string) string {
+func (c *Converter) Pass2(passlog string) string {
 	commandName := "ffmpeg"
 	buffsize := c.videoKilobitRate * 2
 	secondPass := fmt.Sprintf(

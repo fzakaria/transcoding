@@ -13,6 +13,7 @@ type ServerConfig struct {
 
 type AwsConfig struct {
 	Region string
+	QueueUrl string `toml:"queue_url"`
 }
 
 type FfmpegConfig struct {
