@@ -16,11 +16,10 @@ type AwsConfig struct {
 }
 
 type FfmpegConfig struct {
-	Conversions []FfmpegConversion
+	Conversions map[string]FfmpegConversion
 }
 
 type FfmpegConversion struct {
-	Name             string
 	Scale            string
 	VideoKilobitRate uint `toml:"video_kilobit_rate"`
 	AudioKilobitRate uint `toml:"audio_kilobit_rate"`

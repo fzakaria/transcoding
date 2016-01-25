@@ -26,59 +26,55 @@ func TranscodeGet(c *echo.Context) error {
 	return c.File("./public/views/transcode.html", "", false)
 }
 
-var TypeTranscoderMap map[string](func(s1, s2 string) *FfmpegConverter) = map[string](func(s1, s2 string) *FfmpegConverter){
-	"320p": New320pConverter,
-	"360p": New360pConverter,
-	"480p": New480pConverter,
-	"576p": New576pConverter,
-	"720p": New720pConverter,
-}
+func TranscodePost(conversions map[string]FfmpegConversion) echo.HandlerFunc {
+	fn := func(c *echo.Context) error {
+		//The 0 here is important because it forces the file
+		//to be written to disk, causing us to cast it to os.File
+		c.Request().ParseMultipartForm(0)
+		mf, _, err := c.Request().FormFile("input")
+		if err != nil {
+			c.String(http.StatusBadRequest, "Error parsing input file.")
+			return err
+		}
+		input := mf.(*os.File)
+		defer os.Remove(input.Name())
 
-func TranscodePost(c *echo.Context) error {
-	//The 0 here is important because it forces the file
-	//to be written to disk, causing us to cast it to os.File
-	c.Request().ParseMultipartForm(0)
-	mf, _, err := c.Request().FormFile("input")
-	if err != nil {
-		c.String(http.StatusBadRequest, "Error parsing input file.")
-		return err
+		output, err := ioutil.TempFile("", "output")
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Error creating output file.")
+			return err
+		}
+		defer os.Remove(output.Name())
+
+		conversion, exists := conversions[c.Form("type")]
+		if !exists {
+			return c.String(http.StatusBadRequest, "Not a valid transcoding type.")
+		}
+
+		converter := NewFfmpegConverter(input.Name(), output.Name(), conversion.Scale,
+			conversion.VideoKilobitRate, conversion.AudioKilobitRate)
+
+		if err := converter.Transcode(); err != nil {
+			c.String(http.StatusInternalServerError, "Error transcoding the file.")
+			return err
+		}
+
+		c.Response().Header().Set(echo.ContentType, "video/mp4")
+		fi, err := output.Stat()
+		if err != nil {
+			c.String(http.StatusInternalServerError, "Error retrieving size of file.")
+			return err
+		}
+		c.Response().Header().Set(echo.ContentLength, strconv.FormatInt(fi.Size(), 10))
+
+		if err := c.File(output.Name(), "output.mp4", true); err != nil {
+			c.String(http.StatusInternalServerError, "Error sending file.")
+			return err
+		}
+
+		return nil
 	}
-	input := mf.(*os.File)
-	defer os.Remove(input.Name())
-
-	output, err := ioutil.TempFile("", "output")
-	if err != nil {
-		c.String(http.StatusInternalServerError, "Error creating output file.")
-		return err
-	}
-	defer os.Remove(output.Name())
-
-	transcodeFunc, exists := TypeTranscoderMap[c.Form("type")]
-	if !exists {
-		return c.String(http.StatusBadRequest, "Not a valid transcoding type.")
-	}
-
-	converter := transcodeFunc(input.Name(), output.Name())
-
-	if err := converter.Transcode(); err != nil {
-		c.String(http.StatusInternalServerError, "Error transcoding the file.")
-		return err
-	}
-
-	c.Response().Header().Set(echo.ContentType, "video/mp4")
-	fi, err := output.Stat()
-	if err != nil {
-		c.String(http.StatusInternalServerError, "Error retrieving size of file.")
-		return err
-	}
-	c.Response().Header().Set(echo.ContentLength, strconv.FormatInt(fi.Size(), 10))
-
-	if err := c.File(output.Name(), "output.mp4", false); err != nil {
-		c.String(http.StatusInternalServerError, "Error sending file.")
-		return err
-	}
-
-	return nil
+	return fn
 }
 
 func configHandler(config Config) http.Handler {
@@ -119,7 +115,7 @@ func StartServer(config Config) {
 
 	//One off transcoding
 	e.Get("/transcode", TranscodeGet)
-	e.Post("/transcode", TranscodePost)
+	e.Post("/transcode", TranscodePost(config.Ffmpeg.Conversions))
 
 	// automatically add routers for net/http/pprof
 	// e.g. /debug/pprof, /debug/pprof/heap, etc.
