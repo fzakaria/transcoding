@@ -18,9 +18,6 @@
 FROM jrottenberg/ffmpeg
 MAINTAINER Farid Zakaria
 
-ENTRYPOINT ["transcoding"]
-CMD ["--help"]
-
 # We now need to install Go & GCC
 # Taken from:
 # https://github.com/docker-library/golang/blob/1eab0db63794152b4516dbcb70270eb9dced4cbd/1.5/Dockerfile
@@ -62,3 +59,7 @@ ENV PORT 8080
 
 # Expose port 8080 to the host so we can access our application
 EXPOSE 8080
+
+
+ENTRYPOINT ["transcoding"]
+CMD ["--config", "/go/src/github.com/fzakaria/transcoding/configs/prod-us-east-1.toml"]
