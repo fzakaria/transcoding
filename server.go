@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/BurntSushi/toml"
 	log "github.com/Sirupsen/logrus"
 	el "github.com/deoxxa/echo-logrus"
 	"github.com/echo-contrib/echopprof"
@@ -59,7 +60,7 @@ func TranscodePost(c *echo.Context) error {
 
 	converter := transcodeFunc(input.Name(), output.Name())
 
-	if err:= converter.Transcode(); err != nil {
+	if err := converter.Transcode(); err != nil {
 		c.String(http.StatusInternalServerError, "Error transcoding the file.")
 		return err
 	}
@@ -80,19 +81,36 @@ func TranscodePost(c *echo.Context) error {
 	return nil
 }
 
-func StartServer(port int, debug bool) {
+func configHandler(config Config) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		encoder := toml.NewEncoder(w)
+		if err := encoder.Encode(config); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
+		w.WriteHeader(http.StatusOK)
+	}
+	return http.HandlerFunc(fn)
+}
+
+func StartServer(config Config) {
+	port := config.Server.Port
+	debug := config.Server.Debug
 	hostname := fmt.Sprintf(":%v", port)
 
 	// Echo instance
 	e := echo.New()
 	//auto creating an index page for the directory
 	e.AutoIndex(true)
-	e.SetDebug(debug)
+	//enable some helpful debug settings
+	if debug {
+		log.SetLevel(log.DebugLevel)
+		e.SetDebug(debug)
+	}
 
 	// Middleware
 	e.Use(el.New())
 	e.Use(mw.Recover())
-	//e.Use(mw.Gzip())
+	e.Use(mw.Gzip())
 
 	// Routes
 	e.Get("/ping", func(c *echo.Context) error {
@@ -107,13 +125,16 @@ func StartServer(port int, debug bool) {
 	// e.g. /debug/pprof, /debug/pprof/heap, etc.
 	echopprof.Wrapper(e)
 
+	// Route for some basic statics
 	// https://github.com/thoas/stats
 	s := stats.New()
 	e.Use(s.Handler)
-	// Route
 	e.Get("/stats", func(c *echo.Context) error {
 		return c.JSON(http.StatusOK, s.Data())
 	})
+
+	// Route to see the configuration we are using
+	e.Get("/config", configHandler(config))
 
 	// Start server
 	log.WithFields(log.Fields{

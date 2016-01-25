@@ -1,0 +1,42 @@
+# This is a TOML document.
+
+title = "TOML Example"
+
+[server]
+port = 8080
+debug = true
+
+[aws]
+region = "us-east-1"
+
+[ffmpeg]
+	
+	[[ffmpeg.conversions]]
+	 name = "720p"
+	 scale = "-1:720"
+	 video_kilobit_rate = 1000
+	 audio_kilobit_rate = 128
+
+	[[ffmpeg.conversions]]
+	name = "576p"
+	scale = "-1:576"
+	video_kilobit_rate = 850
+	audio_kilobit_rate = 128
+
+	[[ffmpeg.conversions]]
+	name = "480p"
+	scale = "-1:480"
+	video_kilobit_rate = 500
+	audio_kilobit_rate = 128
+
+	[[ffmpeg.conversions]]
+	name = "360p"
+	scale = "-1:360"
+	video_kilobit_rate = 300
+	audio_kilobit_rate = 128
+
+	[[ffmpeg.conversions]]
+	name = "320p"
+	scale = "-1:320"
+	video_kilobit_rate = 180
+	audio_kilobit_rate = 128

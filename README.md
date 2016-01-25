@@ -1,17 +1,13 @@
-# Transcoding CLI & Server tool
+# Transcoding Server tool
 
 ## Sample Commands
 
 ```
 go get github.com/fzakaria/transcoding
 go install github.com/fzakaria/transcoding
-#Assumes $GOPATH/bin is on your $PATH
-transcoding 320p -i sample.mp4 -o output.mp4  
-transcoding server --debug
+#Assumes $GOPATH/bin is on your $PATH 
+transcoding --config ./configs/prod-us-east-1.toml
 ```
-
-## CLI
-This binary includes a CLI tool that is a thin wrapper around ffmpeg (msut be on $PATH) with the hopes of making it more programmable. At the moment it will include some known defaults (see below) on some common video transcoding - specifically for H.264
 
 ## Server
 A basic server implementation is included that offers the facility to transcode uploaded multipart files and some additional admin urls.
@@ -29,6 +25,7 @@ GET /debug/pprof/cmdline
 GET /debug/pprof/profile                     
 GET /debug/pprof/symbol                      
 GET /stats    
+GET /config
 ```
 
 ## Choosing an appriorate filter description

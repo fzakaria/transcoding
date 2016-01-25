@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 	log "github.com/Sirupsen/logrus"
+	"io/ioutil"
+	"os"
 	"os/exec"
 	"strings"
-	"os"
-	"io/ioutil"
 )
 
 type FfmpegConverter struct {
@@ -41,8 +41,8 @@ func NewFfmpegConverter(input, output, videoScale string, videoKilobitRate, audi
 	return &FfmpegConverter{input, output, videoScale, videoKilobitRate, audioKilobitRate}
 }
 
-func (c *FfmpegConverter) Transcode() (error) {
-	ffmpegCmd := func(fullCommand string) (error) {
+func (c *FfmpegConverter) Transcode() error {
+	ffmpegCmd := func(fullCommand string) error {
 		log.WithFields(log.Fields{
 			"cmd": fullCommand,
 		}).Debug("Transcoding file.")
@@ -63,7 +63,7 @@ func (c *FfmpegConverter) Transcode() (error) {
 	passLogFile, err := ioutil.TempFile("", "ffmpeg2pass")
 	if err != nil {
 		log.WithFields(log.Fields{
-				"error": err,
+			"error": err,
 		}).Error("Error creating ffmpeg2pass log file.")
 		return err
 	}
@@ -71,13 +71,13 @@ func (c *FfmpegConverter) Transcode() (error) {
 
 	if err := ffmpegCmd(c.Pass1(passLogFile.Name())); err != nil {
 		log.WithFields(log.Fields{
-				"error": err,
+			"error": err,
 		}).Error("Error during first pass.")
 		return err
 	}
 	if err := ffmpegCmd(c.Pass2(passLogFile.Name())); err != nil {
 		log.WithFields(log.Fields{
-				"error": err,
+			"error": err,
 		}).Error("Error during second pass.")
 		return err
 	}
