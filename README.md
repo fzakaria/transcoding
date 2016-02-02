@@ -39,6 +39,27 @@ brew install http
 http -f POST http://localhost:8080/transcode input@~/Downloads/sample.mp4 type=480p  > output.mp4
 ```
 
+###AWS
+The server has a tighter integration with performing Transcoding from files saved in S3 and writting them back out to S3.
+The route available is *POST* `/api/transcode`
+
+You can specify a samlpe request based on the following schema:
+
+```    
+{
+		"input": {
+			"bucket": "slinger-test",
+			"key": "input.mp4"
+		},
+		"output": {
+			"bucket": "slinger-test",
+			"key": "output.mp4"
+		},
+		"type" : "320p"
+}
+```
+**THE SERVER MUST HAVE ACCESS TO THE INPUT & OUTPUT BUCKET - SEE AWS BUCKET POLICIES**
+
 ## Docker
 To make bootstrapping easier for variety of platforms. A Dockerfile is provided which will run the server in a [docker](https://www.docker.com/) container.
 
