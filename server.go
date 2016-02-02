@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"github.com/BurntSushi/toml"
 	log "github.com/Sirupsen/logrus"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	el "github.com/deoxxa/echo-logrus"
 	"github.com/fzakaria/transcoding/client"
 	"github.com/fzakaria/transcoding/ffmpeg"
@@ -14,14 +18,80 @@ import (
 	"net/http"
 	"net/http/pprof"
 	"os"
+	"io"
 	"strconv"
+	"errors"
 )
 
-func TranscodeJsonPost(conversions map[string]FfmpegConversion) echo.HandlerFunc {
+func TranscodeJsonPost(awsConfig AwsConfig, conversions map[string]FfmpegConversion) echo.HandlerFunc {
 	fn := func(c *echo.Context) error {
-		input := &client.TranscodeInput{}
-		if err := c.Bind(input); err != nil {
+		request := &client.TranscodeRequest{}
+		if err := c.Bind(request); err != nil {
 			return err //return Unsupported Media Type or BadRequest
+		}
+
+		svc := s3.New(session.New(&aws.Config{Region: aws.String(awsConfig.Region)}))
+		getObjectParams := &s3.GetObjectInput{
+			Bucket: aws.String(request.Input.Bucket),
+			Key:    aws.String(request.Input.Key),
+		}
+		resp, err := svc.GetObject(getObjectParams)
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error":   err.Error(),
+				"code":    err.(awserr.Error).Code(),
+				"message": err.(awserr.Error).Message(),
+			}).Warn("Issue occured fetching object.")
+			return err
+		}
+		input, err := ioutil.TempFile("", "s3Input")
+		if err != nil {
+			log.WithFields(log.Fields{
+				"error": err,
+			}).Error("Error creating s3 input temporary file.")
+			return err
+		}
+		defer os.Remove(input.Name())
+		//Copy over the buffer to the file
+		_, errCopy := io.Copy(input, resp.Body)
+		if errCopy != nil {
+			log.WithFields(log.Fields{
+				"error": errCopy,
+			}).Error("Error copying object to temporary input file")
+			return errCopy
+		}
+		conversion, ok := conversions[request.Type]
+		if !ok {
+			return errors.New("This type does not exists")
+		}
+		output, err := ioutil.TempFile("", "output")
+		if err != nil {
+			return err
+		}
+		defer os.Remove(output.Name())
+		converter := ffmpeg.NewConverter(input.Name(), output.Name(), conversion.Scale,
+			conversion.VideoKilobitRate, conversion.AudioKilobitRate)
+
+		if err := converter.Transcode(); err != nil {
+			return err
+		}
+
+		fi, _ := output.Stat()
+		//Begin Upload
+		putObjectParams := &s3.PutObjectInput{
+			Bucket:        aws.String(request.Output.Bucket),
+			Key:           aws.String(request.Output.Key),
+			ContentType:   aws.String("video/mp4"),
+			ContentLength: aws.Int64(fi.Size()),
+			Body:          output,
+		}
+
+		_, err1 := svc.PutObject(putObjectParams)
+		if err1 != nil {
+			log.WithFields(log.Fields{
+				"error": err1,
+			}).Error("Error putting s3 output temporary file.")
+			return err1
 		}
 		return nil
 	}
@@ -216,7 +286,7 @@ func StartServer(config Config) {
 	/*
 	*    Admin routes
 	*   The following are some high level administration routes.
-	*/
+	 */
 	admin := e.Group("/admin")
 	admin.Get("", func(c *echo.Context) error {
 		return c.File("./public/views/admin.html", "", false)
@@ -244,17 +314,16 @@ func StartServer(config Config) {
 	/*
 	*   View routes
 	*   The following are the view routes
-	*/
+	 */
 	e.Get("/transcode", TranscodeGet)
 	e.Post("/transcode", TranscodePost(config.Ffmpeg.Conversions))
-
 
 	/*
 	*   API routes
 	*   The following are the API routes
-	*/
+	 */
 	g := e.Group("/api")
-	g.Post("/transcode", TranscodeJsonPost(config.Ffmpeg.Conversions))
+	g.Post("/transcode", TranscodeJsonPost(config.Aws, config.Ffmpeg.Conversions))
 
 	// Start server
 	log.WithFields(log.Fields{

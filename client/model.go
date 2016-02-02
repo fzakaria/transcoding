@@ -15,7 +15,7 @@ package client
 		"type" : "320p"
 	}
 */
-type TranscodeInput struct {
+type TranscodeRequest struct {
 	Input     S3File `json:"input"`
 	Output    S3File `json:"output"`
 	Type      string `json:"type"`
