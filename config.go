@@ -12,7 +12,7 @@ type ServerConfig struct {
 }
 
 type AwsConfig struct {
-	Region string
+	Region   string
 	QueueUrl string `toml:"queue_url"`
 }
 

@@ -13,20 +13,22 @@ transcoding --config ./configs/prod-us-east-1.toml
 ## Server
 A basic server implementation is included that offers the facility to transcode uploaded multipart files and some additional admin urls.
 
-```
-GET /ping                                    
+```                               
 GET /transcode                               
-POST /transcode                              
-GET /debug/pprof/                            
-GET /debug/pprof/heap                        
-GET /debug/pprof/goroutine                   
-GET /debug/pprof/block                       
-GET /debug/pprof/threadcreate                
-GET /debug/pprof/cmdline                     
-GET /debug/pprof/profile                     
-GET /debug/pprof/symbol                      
-GET /stats    
-GET /config
+POST /transcode 
+#Some admin routes
+GET /admin 
+GET /admin/ping                                 
+GET /admin/pprof/                            
+GET /admin/pprof/heap                        
+GET /admin/pprof/goroutine                   
+GET /admin/pprof/block                       
+GET /admin/pprof/threadcreate                
+GET /admin/pprof/cmdline                     
+GET /admin/pprof/profile                     
+GET /admin/pprof/symbol                      
+GET /admin/stats    
+GET /admin/config
 ```
 
 ###Transcoding

@@ -5,32 +5,122 @@ import (
 	"github.com/BurntSushi/toml"
 	log "github.com/Sirupsen/logrus"
 	el "github.com/deoxxa/echo-logrus"
-	"github.com/echo-contrib/echopprof"
+	"github.com/fzakaria/transcoding/client"
+	"github.com/fzakaria/transcoding/ffmpeg"
 	"github.com/labstack/echo"
 	mw "github.com/labstack/echo/middleware"
-	"github.com/robfig/cron"
 	"github.com/thoas/stats"
 	"io/ioutil"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"strconv"
-	"github.com/fzakaria/transcoding/ffmpeg"
-	"github.com/fzakaria/transcoding/aws/sqs"
 )
 
-func InitializeCron(config AwsConfig) {
-	log.Info("Initializing jobs")
-	worker := sqs.NewDefaultWorker(config.QueueUrl, config.Region, sqs.HandlerFunc(TranscodeSQS))
-	cron := cron.New()
-	cron.AddFunc("@every 5s", worker.Start )
-	cron.Start()
+func TranscodeJsonPost(conversions map[string]FfmpegConversion) echo.HandlerFunc {
+	fn := func(c *echo.Context) error {
+		input := &client.TranscodeInput{}
+		if err := c.Bind(input); err != nil {
+			return err //return Unsupported Media Type or BadRequest
+		}
+		return nil
+	}
+	return fn
 }
 
-func TranscodeSQS(msg * string) {
-	log.WithFields(log.Fields{
-		"msg":  *msg,
-	}).Info("Received a SQS message.")
+/*
+func TranscodeSQS(config AwsConfig, conversions map[string]FfmpegConversion) sqs.Handler {
+	fn := func(msg *string) error {
+		log.WithFields(log.Fields{
+			"msg": *msg,
+		}).Info("Received a SQS message.")
+		var s3Event s3e.Event
+		if err := json.Unmarshal([]byte(*msg), &s3Event); err != nil {
+			log.WithFields(log.Fields{
+				"msg": *msg,
+			}).Warn("Received a SQS message we don't know how to handle. Consuming it.")
+			return nil
+		}
+
+		svc := s3.New(session.New(&aws.Config{Region: aws.String(config.Region)}))
+		for _, record := range s3Event.Records {
+
+			if !strings.HasPrefix(record.EventName, "ObjectCreated") {
+				log.WithFields(log.Fields{
+					"type": record.EventName,
+				}).Debug("Ignoring non-object created messages..")
+				continue
+			}
+
+			getObjectParams := &s3.GetObjectInput{
+				Bucket: aws.String(record.S3.Bucket.Name),
+				Key:    aws.String(record.S3.Object.Key),
+			}
+			resp, err := svc.GetObject(getObjectParams)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"error":   err.Error(),
+					"code":    err.(awserr.Error).Code(),
+					"message": err.(awserr.Error).Message(),
+				}).Warn("Issue occured fetching object.")
+				return err
+			}
+
+			input, err := ioutil.TempFile("", "s3Input")
+			if err != nil {
+				log.WithFields(log.Fields{
+					"error": err,
+				}).Error("Error creating s3 input temporary file.")
+				return err
+			}
+			defer os.Remove(input.Name())
+			//Copy over the buffer to the file
+			_, errCopy := io.Copy(input, resp.Body)
+			if errCopy != nil {
+				log.WithFields(log.Fields{
+					"error": errCopy,
+				}).Error("Error copying object to temporary input file")
+				return errCopy
+			}
+
+			//TODO: perform multiple conversions based on metadata
+			conversion, _ := conversions["320p"]
+			output, err := ioutil.TempFile("", "output")
+			if err != nil {
+				return err
+			}
+			defer os.Remove(output.Name())
+			converter := ffmpeg.NewConverter(input.Name(), output.Name(), conversion.Scale,
+				conversion.VideoKilobitRate, conversion.AudioKilobitRate)
+
+			if err := converter.Transcode(); err != nil {
+				return err
+			}
+
+			fi, _ := output.Stat()
+			//Begin Upload
+			putObjectParams := &s3.PutObjectInput{
+				Bucket:        aws.String(record.S3.Bucket.Name),
+				Key:           aws.String("320p" + record.S3.Object.Key),
+				ContentType:   aws.String("video/mp4"),
+				ContentLength: aws.Int64(fi.Size()),
+				Body:          output,
+			}
+
+			_, err1 := svc.PutObject(putObjectParams)
+			if err1 != nil {
+				log.WithFields(log.Fields{
+					"error": err1,
+				}).Error("Error putting s3 ouypuy temporary file.")
+				return err1
+			}
+
+		}
+		return nil
+	}
+	return sqs.HandlerFunc(fn)
 }
+*/
 
 func TranscodeGet(c *echo.Context) error {
 	return c.File("./public/views/transcode.html", "", false)
@@ -112,37 +202,60 @@ func StartServer(config Config) {
 		log.SetLevel(log.DebugLevel)
 		e.SetDebug(debug)
 	}
+	// https://github.com/thoas/stats
+	s := stats.New()
 
 	// Middleware
-	e.Use(el.New())
-	e.Use(mw.Recover())
-	e.Use(mw.Gzip())
+	e.Use(
+		el.New(),
+		mw.Recover(),
+		mw.Gzip(),
+		s.Handler,
+	)
 
-	// Routes
-	e.Get("/ping", func(c *echo.Context) error {
+	/*
+	*    Admin routes
+	*   The following are some high level administration routes.
+	*/
+	admin := e.Group("/admin")
+	admin.Get("", func(c *echo.Context) error {
+		return c.File("./public/views/admin.html", "", false)
+	})
+	//ping-pong
+	admin.Get("/ping", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "pong")
 	})
+	admin.Get("/stats", func(c *echo.Context) error {
+		return c.JSON(http.StatusOK, s.Data())
+	})
+	// Route to see the configuration we are using
+	admin.Get("/config", configHandler(config))
+	//pprof
+	admin.Get("/pprof", http.HandlerFunc(pprof.Index))
+	admin.Get("/pprof/heap", pprof.Handler("heap").ServeHTTP)
+	admin.Get("/pprof/goroutine", pprof.Handler("goroutine").ServeHTTP)
+	admin.Get("/pprof/block", pprof.Handler("block").ServeHTTP)
+	admin.Get("/pprof/threadcreate", pprof.Handler("threadcreate").ServeHTTP)
+	admin.Get("/pprof/cmdline", http.HandlerFunc(pprof.Cmdline))
+	admin.Get("/pprof/profile", http.HandlerFunc(pprof.Profile))
+	admin.Get("/pprof/symbol", http.HandlerFunc(pprof.Symbol))
+	admin.Get("/pprof/trace", http.HandlerFunc(pprof.Trace))
 
-	//One off transcoding
+	/*
+	*   View routes
+	*   The following are the view routes
+	*/
 	e.Get("/transcode", TranscodeGet)
 	e.Post("/transcode", TranscodePost(config.Ffmpeg.Conversions))
 
-	// automatically add routers for net/http/pprof
-	// e.g. /debug/pprof, /debug/pprof/heap, etc.
-	echopprof.Wrapper(e)
 
-	// Route for some basic statics
-	// https://github.com/thoas/stats
-	s := stats.New()
-	e.Use(s.Handler)
-	e.Get("/stats", func(c *echo.Context) error {
-		return c.JSON(http.StatusOK, s.Data())
-	})
+	/*
+	*   API routes
+	*   The following are the API routes
+	*/
+	g := e.Group("/api")
+	g.Post("/transcode", TranscodeJsonPost(config.Ffmpeg.Conversions))
 
-	// Route to see the configuration we are using
-	e.Get("/config", configHandler(config))
-
-	InitializeCron(config.Aws)
 	// Start server
 	log.WithFields(log.Fields{
 		"port":  port,
