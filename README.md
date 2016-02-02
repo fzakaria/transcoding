@@ -65,7 +65,7 @@ To make bootstrapping easier for variety of platforms. A Dockerfile is provided 
 
 ```
 #The following commands assumes you are in the package
-docker build -t transcode-server
+docker build -t transcode-server .
 docker run -p 8080:8080 transcode-server   
 #You can now access the server at localhost:8080
 #or if you ar on mac osx `docker-machine ip default`
